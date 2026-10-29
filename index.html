@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ILAVIDEDITS — The Short-Video Lab</title>
+<meta name="description" content="ILAVIDEDITS edits short videos: cutting, sound, color, captions and export. Scroll through the lab.">
+<meta name="theme-color" content="#050608">
+<style>
+  :root { --cyan: #ffffff; --warm: #ffffff; }
+  * { box-sizing: border-box; }
+  html { background: #050608; }
+  body { margin: 0; background: #050608; color: #f2efe9; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #lab { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
+  #scroll i { display: block; height: 141vh; }
+  #scroll i:last-child { height: 100vh; }
+  /* touch devices: no native scrolling, main.js steps one stop per swipe */
+  html.touch, html.touch body { overflow: hidden; height: 100%; overscroll-behavior: none; }
+  html.touch #scroll { display: none; }
+  html.touch #lab { touch-action: none; }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%); }
+
+  /* all copy lives inside the 3D scene; this text is only for screen readers, search and keyboard users */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .sr a:focus { position: fixed; left: 16px; top: 16px; width: auto; height: auto; clip-path: none; padding: 12px 18px; background: #ffb069; color: #1a0f04; border-radius: 10px; font-weight: 700; z-index: 30; }
+
+  #progress { position: fixed; right: max(14px, 1.6vw); top: 50%; transform: translateY(-50%); z-index: 6; display: flex; flex-direction: column; gap: 4px; }
+  #progress button { all: unset; cursor: pointer; display: grid; place-items: center; width: 22px; height: 22px; }
+  #progress em { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.3); transition: .3s; }
+  #progress button.on em { background: var(--cyan); box-shadow: 0 0 14px var(--cyan); transform: scale(1.6); }
+  #progress button:hover em { background: #fff; }
+  #progress button:focus-visible { outline: 2px solid var(--warm); }
+
+  #hint { position: fixed; left: 50%; bottom: 26px; translate: -50% 0; z-index: 6; opacity: 0; pointer-events: none; display: flex; align-items: center; gap: 18px; padding: 10px 18px; border-radius: 999px; background: rgba(8,10,14,.6); border: 1px solid rgba(255,255,255,.28); color: #fff; font: 600 15px/1 system-ui, sans-serif; }
+  #hint .keys { display: flex; gap: 6px; } #hint .keys b { display: grid; place-items: center; width: 30px; height: 30px; border: 1.5px solid rgba(255,255,255,.7); border-radius: 7px; font-size: 16px; animation: key 2.4s ease-in-out infinite; } #hint .keys b + b { animation-delay: 1.2s; }
+  #hint .mouse { position: relative; width: 20px; height: 32px; border: 1.5px solid rgba(255,255,255,.7); border-radius: 11px; } #hint .mouse i { position: absolute; left: 50%; top: 6px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: #fff; animation: wheel 1.6s ease-in-out infinite; }
+  #hint .swipe { display: none; position: relative; width: 26px; height: 44px; } #hint .swipe i { position: absolute; left: 50%; bottom: 2px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #fff; animation: swipe 1.6s ease-in-out infinite; } #hint .swipe u { position: absolute; left: 50%; top: 0; width: 12px; height: 12px; margin-left: -6px; border-left: 2px solid #fff; border-top: 2px solid #fff; rotate: 45deg; text-decoration: none; opacity: .8; }
+  html.touch #hint { bottom: 27vh; padding: 12px 22px; } html.touch #hint .keys, html.touch #hint .mouse { display: none; } html.touch #hint .swipe { display: block; }
+  @keyframes key { 0%, 100% { opacity: .45; } 50% { opacity: 1; } } @keyframes wheel { 0% { translate: 0 0; opacity: 1; } 100% { translate: 0 10px; opacity: 0; } } @keyframes swipe { 0% { translate: 0 0; opacity: 0; } 20% { opacity: 1; } 100% { translate: 0 -26px; opacity: 0; } }
+  #loader { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: #050608; transition: opacity .8s .3s, visibility 0s 1.1s; }
+  #loader i { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,.14); border-top-color: var(--cyan); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ready #loader { opacity: 0; visibility: hidden; }
+  .nogl { display: none; position: fixed; inset: 0; z-index: 30; place-items: center; text-align: center; padding: 24px; background: #050608; }
+  @media (max-width: 760px) { #progress { right: 4px; gap: 0; } }
+  @media (prefers-reduced-motion: reduce) { #loader i, #hint *, #hint b { animation: none; } }
+</style>
+<script>
+  // ---- edit these three things -------------------------------------------------
+  window.LAB_CONFIG = {
+    email: 'ilavidedits@gmail.com',    // where "Send me an email" goes
+    orderUrl: '',                      // checkout / order form URL; empty = prefilled order email
+    formEndpoint: '',                  // optional: Formspree/FormSubmit URL so the form sends without opening a mail app
+    stats: [{ n: '3M+', l: 'views generated' }, { n: '100K+', l: 'likes' }],   // numbers on the results wall (up to 3)
+    clips: [],                         // optional: up to 6 vertical mp4 URLs to play on the screens and phone wall
+  };
+  (function () {
+    var c = window.LAB_CONFIG;
+    window.LAB_LINKS = {
+      email: 'mailto:' + c.email + '?subject=' + encodeURIComponent('Video edit enquiry'),
+      order: c.orderUrl || ('mailto:' + c.email + '?subject=' + encodeURIComponent('Order: video edit') + '&body=' + encodeURIComponent('Hi! I would like to order a video edit.\n\nPlatform (Reels / Shorts / TikTok):\nFootage link:\nDeadline:\n')),
+    };
+  })();
+</script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="lab" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+
+<div class="sr">
+  <h1>ILAVIDEDITS: raw footage in, scroll-stoppers out</h1>
+  <p>Over 3 million views and 100,000 likes generated. How it works: deal, strategy and signature, a month of scripts and shot lists, you film and drop the footage in, then six steps: cut, sound, color, captions, export, delivery.</p>
+  <p>Short-video editing for Reels, Shorts and TikTok: cutting, sound, color and effects, captions and motion, export.</p>
+  <a id="btn-order" href="#">Order a video edit</a>
+  <a id="btn-email" href="#">Send me an email</a>
+</div>
+
+<div id="hint" aria-hidden="true"><span class="keys"><b>↑</b><b>↓</b></span><span class="mouse"><i></i></span><span class="swipe"><u></u><i></i></span></div>
+<nav id="progress" aria-label="Stages">
+  <button aria-label="Door"><em></em></button>
+  <button aria-label="Before the line"><em></em></button>
+  <button aria-label="Intro"><em></em></button>
+  <button aria-label="Raw footage"><em></em></button>
+  <button aria-label="Cutting"><em></em></button>
+  <button aria-label="Sound"><em></em></button>
+  <button aria-label="Color and effects"><em></em></button>
+  <button aria-label="Captions and motion"><em></em></button>
+  <button aria-label="Export"><em></em></button>
+  <button aria-label="Results"><em></em></button>
+  <button aria-label="Contact"><em></em></button>
+</nav>
+
+<div id="scroll"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div id="loader" role="status" aria-label="Loading"><i></i></div>
+<div class="nogl" id="nogl"><p>This page needs WebGL. <a id="nogl-mail" style="color:#4fd8ff" href="#">Email me</a></p></div>
+
+<script>
+  document.getElementById('btn-email').href = document.getElementById('nogl-mail').href = LAB_LINKS.email;
+  document.getElementById('btn-order').href = LAB_LINKS.order;
+  try { document.createElement('canvas').getContext('webgl2') || (document.getElementById('nogl').style.display = 'grid'); } catch (e) { document.getElementById('nogl').style.display = 'grid'; }
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
